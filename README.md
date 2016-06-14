@@ -17,7 +17,7 @@ Use cURL to download the zip of this archive (without the `.git` directory).
 
 You will then still need to copy the `.openshift` directory out of the `OpenShift-Yii2-Config` directory and into the root of your Yii2 app's project.
 
-*#PLEASE NOTE:#*
+## PLEASE NOTE:
 
 These are rough instructions. I will update this README soon with better instructions. I simply want to use cURL to download the GitHub repo and unzip only the `.openshift` directory. Basically you could cd with terminal into your project's root and copy/paste a command and it will put the `.openshift` directory right where it belongs. The only need to clone this repo, would be if you wanted to contribute to the project, or for your own record. I whiped this up, and it will probably be tweaked in the future.
 
