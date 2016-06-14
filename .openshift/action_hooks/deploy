@@ -1,0 +1,126 @@
+#!/bin/bash
+
+# This deploy hook gets executed after dependencies are resolved and the
+# build hook has been run but before the application has been started back
+# up again.  This script gets executed directly, so it could be python, php,
+# ruby, etc.
+
+# Don't forget to "chmod +x .openshift/action_hooks/deploy"
+
+export MY_PHPCOMPOSER=$OPENSHIFT_DATA_DIR/composer.phar
+export YII_INIT=true
+export YII_MIGRATE=false
+
+function repeatSymbol {
+    symbol=$1
+    count=$2
+    for ((i=1; i<=count; i++)); do
+        echo -n "="
+    done
+}
+
+function printBanner {
+    message=$1
+    count=$((${#message} + 8))
+
+    printf "\n"
+    printf "\n"
+    repeatSymbol "=" $count
+
+    printf "\n=== $message ===\n"
+
+    repeatSymbol "=" $count
+    printf "\n"
+    printf "\n"
+
+}
+
+function downloadComposer {
+    # if composer does not exist, download it
+    echo "--> Checking for Composer"
+    if [ ! -f $MY_PHPCOMPOSER ]; then
+        cd $OPENSHIFT_DATA_DIR
+        echo "--> Composer not found..."
+        echo "--> Downloading composer..."
+        php -r "readfile('https://getcomposer.org/installer');" | php
+        cd $OPENSHIFT_REPO_DIR
+    else
+        echo "--> Composer already exists!"
+    fi
+}
+
+function updateComposer {
+    echo "--> Updating Composer"
+    # self update composer
+    $MY_PHPCOMPOSER clear-cache
+    $MY_PHPCOMPOSER -n -q self-update
+    echo "--> Updated Composer"
+}
+
+function getComposerVersion {
+    # already returns "Composer version" at beginning of string
+    echo "--> $($MY_PHPCOMPOSER --version)"
+}
+
+function getGitVersion {
+    echo "--> $(git --version)"
+}
+
+# --------- START CODE ----------
+
+
+printBanner "Start Action Hook: Deploy"
+
+downloadComposer
+updateComposer
+getComposerVersion
+getGitVersion
+
+$MY_PHPCOMPOSER global require "fxp/composer-asset-plugin:~1.1.1"
+
+echo "--> Going back to REPO_DIR"
+cd $OPENSHIFT_REPO_DIR
+
+# Run composer install now, because json does Yii init to dev mode by default
+echo "--> Run Composer install without dev"
+$MY_PHPCOMPOSER install --no-dev --no-scripts
+
+echo "--> START: Yii2 Custom Handling"
+# Time for Yii2 Fun
+if [ -d "$OPENSHIFT_REPO_DIR/frontend" ] && [ -d "$OPENSHIFT_REPO_DIR/backend" ]; then
+
+    # Yii2 Advanced App
+    echo "--> Yii Advanced App Detected"
+
+    # init for Yii2 Advanced Application
+    if [ $YII_INIT  == true ]; then
+        echo "--> Running Yii Init"
+        php init --env=Production --overwrite=All
+    fi
+
+    if [ $YII_MIGRATE == true ]; then
+        echo "--> Running Yii Migrate"
+        php yii migrate --interactive=0
+    fi
+
+    echo "--> Creating Frontend Symlink"
+    ln -s "$OPENSHIFT_REPO_DIR/frontend/web" "$OPENSHIFT_REPO_DIR/web"
+
+    echo "--> Creating Backend (admin) Symlink"
+    ln -s "$OPENSHIFT_REPO_DIR/backend/web" "$OPENSHIFT_REPO_DIR/frontend/web/admin"
+
+else
+
+    # Yii2 Basic App
+    echo "--> Yii Basic App Detected"
+
+    if [ $YII_MIGRATE == true ]; then
+        echo "--> Running Yii Migrate"
+        php yii migrate --interactive=0
+    fi
+
+fi
+
+echo "--> END: Yii2 Custom Handling"
+
+printBanner "End Action Hook: Deploy"
